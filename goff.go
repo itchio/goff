@@ -20,8 +20,6 @@ import (
 	"reflect"
 	"time"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 type (
@@ -87,8 +85,12 @@ func (pf PixelFormat) Desc() *PixFmtDescriptor {
 }
 
 // Return the short name for a pixel format, NULL in case pix_fmt is unknown.
-func (pf PixelFormat) String() string {
+func (pf PixelFormat) Name() string {
 	return C.GoString(C.av_get_pix_fmt_name(pf.C()))
+}
+
+func (pf PixelFormat) String() string {
+	return pf.Name()
 }
 
 func (pf PixelFormat) C() C.enum_AVPixelFormat {
@@ -133,6 +135,18 @@ func (cid CodecID) FindDecoder() *Codec {
 //     An AVCodecContext filled with default values or NULL on failure.
 func (codec *Codec) AllocContext3() *CodecContext {
 	return C.avcodec_alloc_context3(codec)
+}
+
+func (codec *Codec) String() string {
+	return codec.Name()
+}
+
+func (codec *Codec) Name() string {
+	return C.GoString(codec.name)
+}
+
+func (codec *Codec) LongName() string {
+	return C.GoString(codec.long_name)
 }
 
 // Initialize the AVCodecContext to use the given AVCodec.
@@ -564,10 +578,20 @@ func (swctx *SwsContext) Scale(
 	))
 }
 
-func CheckErr(ret ErrNum) error {
-	// TODO: error string
-	if ret < 0 {
-		return errors.Errorf("ffmpeg error %d", ret)
+type Error struct {
+	errnum ErrNum
+}
+
+func (e Error) Error() string {
+	buf := make([]byte, 1024)
+	cstr := (*C.char)(unsafe.Pointer(&buf[0]))
+	C.av_strerror(e.errnum, cstr, (C.size_t)(len(buf)))
+	return C.GoString(cstr)
+}
+
+func CheckErr(errnum ErrNum) error {
+	if errnum < 0 {
+		return &Error{errnum: errnum}
 	}
 	return nil
 }
