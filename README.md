@@ -1,6 +1,6 @@
 
 [![Build Status](https://travis-ci.org/itchio/goff.svg?branch=master)](https://travis-ci.org/itchio/goff)
-[![Go Report Card](https://goreportcard.com/badge/github.com/itchio/goff)](https://goreportcard.com/report/github.com/itchio/butler)
+[![Go Report Card](https://goreportcard.com/badge/github.com/itchio/goff)](https://goreportcard.com/report/github.com/itchio/goff)
 ![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)
 
 # goff
