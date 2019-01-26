@@ -1,3 +1,5 @@
+dist: xenial
+
 addons:
   apt:
     update: true
