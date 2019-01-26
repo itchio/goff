@@ -4,13 +4,14 @@ goff binds a subset of the FFmpeg libraries (avformat, avcodec, avutil, swscale,
 
 ### Mission statement
 
-At the time of this writing, there's a dozen takes on Go/FFmpeg, most of which
-are forks of some other projects.
+At the time of this writing, there's a dozen takes on Go/FFmpeg, most of
+which are forks of some other projects.
 
 After careful examination, it appears worthwhile to contribute a fresh take
 to the ecosystem that emphasizes correctness, forgoes deprecated functions
-and types, tries to stick to a friendly naming convention, and does not attempt
-to find universal high-level wrappers (besides type aliases, see below).
+and types, tries to stick to a friendly naming convention, and does not
+attempt to find universal high-level wrappers (besides type aliases, see
+below).
 
 ### Contributing
 
@@ -18,26 +19,27 @@ If the mission statement above resonates with you, and you would like to add
 missing types/constants/functions to goff, feel free to submit small pull
 requests, that add only a handful of related type/functions at a time.
 
-Try to write contributions in the style of the original codebase - if you have
-questions, open a GitHub issue to get an answer.
+Try to write contributions in the style of the original codebase - if you
+have questions, open a GitHub issue to get an answer.
 
 ### Prerequisites
 
-goff is currently based on FFmpeg 4.0.2.
+goff is currently based on FFmpeg 4.1.
 
-The recommended way to build Go apps with goff is to:
+The `vendor-all.sh` script is provided to download, extract, configure 
+(with an opinionated set of build flags), and install ffmpeg and x264
+into `vendor_c`.
 
-  - Build FFmpeg 4.0.2 into $PREFIX
-  - Export the following variables:
+That script is enough to pass the integration tests, but it might be missing
+features you might need :)
 
-```
-export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
-export CGO_CFLAGS=-I$PREFIX/include
-export CGO_LDFLAGS=-L$PREFIX/lib
-```
+After that, `PKG_CONFIG_PATH` still needs to be set properly, which
+`source vendor-env.sh` achieves (you could put that in your `.envrc`,
+using <https://direnv.net/> is a good idea here).
 
-If you're not familiar with building software into a prefix,
-goff is probably not right for you at this time.
+To run binaries compiled against the libs installed by `vendor-all.sh`,
+`LD_LIBRARY_PATH` needs to be set. Again, `source vendor-env.sh` takes care
+of that.
 
 ### Design: Packages
 
