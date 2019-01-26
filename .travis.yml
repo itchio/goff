@@ -6,11 +6,11 @@ addons:
     packages: build-essential
 
 before_script:
-  - ./vendor-all.sh
-
-script:
   - source vendor-env.sh
   # for nasm
   - export PATH=$PATH:$PREFIX/bin
+  - ./vendor-all.sh
+
+script:
   - go test -v ./...
 
