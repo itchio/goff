@@ -19,6 +19,8 @@ import (
 	"reflect"
 	"time"
 	"unsafe"
+
+	"github.com/pkg/errors"
 )
 
 type (
@@ -36,6 +38,58 @@ type (
 
 	ErrNum = C.int
 	Timing = C.int64_t
+)
+
+var (
+	ERROR_EAGAIN ErrNum = -C.EAGAIN
+	// Bitstream filter not found.
+	ERROR_BSF_NOT_FOUND ErrNum = C.AVERROR_BSF_NOT_FOUND
+	// Internal bug, also see AVERROR_BUG2
+	ERROR_BUG ErrNum = C.AVERROR_BUG
+	// Buffer too small.
+	ERROR_BUFFER_TOO_SMALL ErrNum = C.AVERROR_BUFFER_TOO_SMALL
+	// Decoder not found
+	ERROR_DECODER_NOT_FOUND ErrNum = C.AVERROR_DECODER_NOT_FOUND
+	// Demuxer not found
+	ERROR_DEMUXER_NOT_FOUND ErrNum = C.AVERROR_DEMUXER_NOT_FOUND
+	// Encoder not found
+	ERROR_ENCODER_NOT_FOUND ErrNum = C.AVERROR_ENCODER_NOT_FOUND
+	// End of file
+	ERROR_EOF ErrNum = C.AVERROR_EOF
+	// Immediate exit was requested; the called function should not be restarted
+	ERROR_EXIT ErrNum = C.AVERROR_EXIT
+	// Generic error in an external library
+	ERROR_EXTERNAL ErrNum = C.AVERROR_EXTERNAL
+	// Filter not found
+	ERROR_FILTER_NOT_FOUND ErrNum = C.AVERROR_FILTER_NOT_FOUND
+	// Invalid data found when processing input
+	ERROR_INVALIDDATA ErrNum = C.AVERROR_INVALIDDATA
+	// Muxer not found
+	ERROR_MUXER_NOT_FOUND ErrNum = C.AVERROR_MUXER_NOT_FOUND
+	// Option not found
+	ERROR_OPTION_NOT_FOUND ErrNum = C.AVERROR_OPTION_NOT_FOUND
+	// Not yet implemented in FFmpeg, patches welcome.
+	ERROR_PATCHWELCOME ErrNum = C.AVERROR_PATCHWELCOME
+	// Protocol not found
+	ERROR_PROTOCOL_NOT_FOUND ErrNum = C.AVERROR_PROTOCOL_NOT_FOUND
+	// Stream not found
+	ERROR_STREAM_NOT_FOUND ErrNum = C.AVERROR_STREAM_NOT_FOUND
+	// This is semantically identical to AVERROR_BUG it has been introduced in Libav after our AVERROR_BUG and with a modified value.
+	ERROR_BUG2 ErrNum = C.AVERROR_BUG2
+	// Unknown error, typically from an external library.
+	ERROR_UNKNOWN ErrNum = C.AVERROR_UNKNOWN
+	// Requested feature is flagged experimental. Set strict_std_compliance if you really want to use it.
+	ERROR_EXPERIMENTAL ErrNum = C.AVERROR_EXPERIMENTAL
+	// Input changed between calls. Reconfiguration is required. (can be OR-ed with AVERROR_OUTPUT_CHANGED)
+	ERROR_INPUT_CHANGED ErrNum = C.AVERROR_INPUT_CHANGED
+	// Output changed between calls. Reconfiguration is required. (can be OR-ed with AVERROR_INPUT_CHANGED)
+	ERROR_OUTPUT_CHANGED    ErrNum = C.AVERROR_OUTPUT_CHANGED
+	ERROR_HTTP_BAD_REQUEST  ErrNum = C.AVERROR_HTTP_BAD_REQUEST
+	ERROR_HTTP_UNAUTHORIZED ErrNum = C.AVERROR_HTTP_UNAUTHORIZED
+	ERROR_HTTP_FORBIDDEN    ErrNum = C.AVERROR_HTTP_FORBIDDEN
+	ERROR_HTTP_NOT_FOUND    ErrNum = C.AVERROR_HTTP_NOT_FOUND
+	ERROR_HTTP_OTHER_4XX    ErrNum = C.AVERROR_HTTP_OTHER_4XX
+	ERROR_HTTP_SERVER_ERROR ErrNum = C.AVERROR_HTTP_SERVER_ERROR
 )
 
 var (
@@ -117,6 +171,17 @@ func (cid CodecID) C() C.enum_AVCodecID {
 //   A decoder if one was found, NULL otherwise.
 func (cid CodecID) FindDecoder() *Codec {
 	return C.avcodec_find_decoder(cid.C())
+}
+
+// Find a registered encoder with a matching codec ID.
+//
+// Parameters
+//   id	AVCodecID of the requested encoder
+//
+// Returns
+//   An encoder if one was found, NULL otherwise.
+func (cid CodecID) FindEncoder() *Codec {
+	return C.avcodec_find_encoder(cid.C())
 }
 
 // Allocate an AVCodecContext and set its fields to default values.
@@ -211,7 +276,23 @@ func (cctx *CodecContext) ReceiveFrame(frame *Frame) error {
 // The codecs are not opened. The stream must be closed with avformat_close_input().
 func FormatOpenInput(url string, format *InputFormat, options **Dictionary) (*FormatContext, error) {
 	var ctx *FormatContext
-	ret := C.avformat_open_input(&ctx, C.CString(url), format, options)
+
+	url_ := CString(url)
+	defer FreeString(url_)
+
+	ret := C.avformat_open_input(&ctx, url_, format, options)
+	return ctx, CheckErr(ret)
+}
+
+func FormatAllocOutputContext2(oformat *OutputFormat, formatName string, filename string) (*FormatContext, error) {
+	var ctx *FormatContext
+
+	formatName_ := CString(formatName)
+	defer FreeString(formatName_)
+	filename_ := CString(filename)
+	defer FreeString(filename_)
+
+	ret := C.avformat_alloc_output_context2(&ctx, oformat, formatName_, filename_)
 	return ctx, CheckErr(ret)
 }
 
@@ -252,11 +333,10 @@ func (ctx *FormatContext) Streams() []*Stream {
 }
 
 func (ctx *FormatContext) DumpFormat(index int, url string, isOutput bool) {
-	var isOutputInt = 0
-	if isOutput {
-		isOutputInt = 1
-	}
-	C.av_dump_format(ctx, C.int(index), C.CString(url), C.int(isOutputInt))
+	url_ := CString(url)
+	defer FreeString(url_)
+
+	C.av_dump_format(ctx, C.int(index), url_, BoolToInt(isOutput))
 }
 
 // Return the next frame of a stream.
@@ -581,11 +661,26 @@ type Error struct {
 	errnum ErrNum
 }
 
-func (e Error) Error() string {
+func (e *Error) Error() string {
 	buf := make([]byte, 1024)
 	cstr := (*C.char)(unsafe.Pointer(&buf[0]))
 	C.av_strerror(e.errnum, cstr, (C.size_t)(len(buf)))
 	return C.GoString(cstr)
+}
+
+func IsErrNum(e error, errnum ErrNum) bool {
+	if ee, ok := errors.Cause(e).(*Error); ok {
+		return ee.errnum == errnum
+	}
+	return false
+}
+
+func IsEOF(e error) bool {
+	return IsErrNum(e, ERROR_EOF)
+}
+
+func IsEAGAIN(e error) bool {
+	return IsErrNum(e, ERROR_EAGAIN)
 }
 
 func CheckErr(errnum ErrNum) error {
@@ -593,4 +688,24 @@ func CheckErr(errnum ErrNum) error {
 		return &Error{errnum: errnum}
 	}
 	return nil
+}
+
+func CString(s string) *C.char {
+	if s == "" {
+		return (*C.char)(nil)
+	}
+	return C.CString(s)
+}
+
+func FreeString(c *C.char) {
+	if c != nil {
+		C.free(unsafe.Pointer(c))
+	}
+}
+
+func BoolToInt(b bool) C.int {
+	if b {
+		return 1
+	}
+	return 0
 }

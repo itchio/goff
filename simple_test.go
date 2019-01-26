@@ -1,7 +1,6 @@
 package goff_test
 
 import (
-	"log"
 	"testing"
 
 	"github.com/itchio/goff"
@@ -43,15 +42,36 @@ func TestDecode(t *testing.T) {
 	defer frame.Free()
 
 	var packet goff.Packet
+
+	readFrames := func() {
+		for {
+			err = vdec.ReceiveFrame(frame)
+			if err != nil {
+				if goff.IsEAGAIN(err) {
+					return
+				}
+				if goff.IsEOF(err) {
+					return
+				}
+				assert.NoError(err)
+				t.FailNow()
+			}
+
+			numFrames++
+		}
+	}
+
 	for {
 		packet.Init()
 
 		err = ctx.ReadFrame(&packet)
 		if err != nil {
-			break
+			if goff.IsEOF(err) {
+				break
+			}
+			assert.NoError(err)
+			t.FailNow()
 		}
-		log.Printf("ReadFrame, got packet for stream %d", packet.StreamIndex())
-		// assert.NoError(err)
 
 		if packet.StreamIndex() != vst.Index() {
 			// ignore audio packets
@@ -61,19 +81,16 @@ func TestDecode(t *testing.T) {
 		packet.RescaleTs(vst.TimeBase(), vdec.TimeBase())
 
 		err = vdec.SendPacket(&packet)
-		assert.NoError(err)
-
-		for {
-			err = vdec.ReceiveFrame(frame)
-			if err != nil {
-				log.Printf("in receive_frame: %v", err)
-				break
-			}
-			// assert.NoError(err)
-
-			numFrames++
+		if err != nil {
+			assert.NoError(err)
+			t.FailNow()
 		}
+
+		readFrames()
 	}
+	readFrames()
+
+	t.Logf("Processed %d frames in total", numFrames)
 	assert.EqualValues(23, numFrames)
 
 	defer ctx.Free()
