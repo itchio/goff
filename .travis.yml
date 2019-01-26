@@ -1,0 +1,12 @@
+addons:
+  apt:
+    update: true
+    packages: build-essential yasm nasm
+
+before_script:
+  - ./vendor-all.sh
+
+script:
+  - source vendor-env.sh
+  - go test -v ./...
+

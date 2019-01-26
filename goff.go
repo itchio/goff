@@ -1,6 +1,6 @@
 package goff
 
-//#cgo pkg-config: libavformat libavcodec libavutil libavdevice libavfilter libswresample libswscale
+//#cgo pkg-config: libavformat libavcodec libavutil libswscale x264
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <inttypes.h>
@@ -12,7 +12,6 @@ package goff
 //#include <libavutil/opt.h>
 //#include <libavutil/pixdesc.h>
 //#include <libavutil/rational.h>
-//#include <libavdevice/avdevice.h>
 //#include <libswscale/swscale.h>
 import "C"
 
