@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDecode(t *testing.T) {
+func TestSimple(t *testing.T) {
 	assert := assert.New(t)
 
 	ctx, err := goff.FormatOpenInput("testdata/sample.mp4", nil, nil)
