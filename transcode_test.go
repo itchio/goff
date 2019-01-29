@@ -10,6 +10,10 @@ import (
 func TestTranscode(t *testing.T) {
 	assert := assert.New(t)
 
+	goff.LogSetCallback(func(line string) {
+		t.Logf(line)
+	})
+
 	must := func(err error) {
 		if err != nil {
 			assert.NoError(err)
@@ -29,6 +33,8 @@ func TestTranscode(t *testing.T) {
 
 	vst := ctx.Streams()[0]
 	assert.EqualValues("video", vst.CodecParameters().CodecType().String())
+
+	ctx.DumpFormat(0, "", false)
 
 	numFrames := 0
 
@@ -64,11 +70,16 @@ func TestTranscode(t *testing.T) {
 	defer octx.Free()
 
 	octx.SetPB(pb)
+	octx.SetOutputFormat(ofmt)
 
 	ovst := octx.NewStream(vcod)
 	ovst.SetID(0)
 
-	venc := vcod.AllocContext3()
+	ocid := goff.CodecID_H264
+	ovcod := ocid.FindEncoder()
+	assert.NotNil(ovcod)
+
+	venc := ovcod.AllocContext3()
 	assert.NotNil(venc)
 
 	venc.SetCodecType(goff.MediaType_Video)
@@ -79,6 +90,8 @@ func TestTranscode(t *testing.T) {
 	venc.SetTimeBase(ovst.TimeBase())
 	venc.SetGOPSize(120)
 	venc.SetMaxBFrames(16)
+	venc.SetWidth(vdec.Width())
+	venc.SetHeight(vdec.Height())
 
 	crf := 20
 	venc.SetQMin(crf)
@@ -87,16 +100,48 @@ func TestTranscode(t *testing.T) {
 	venc.SetProfile(goff.Profile_H264_BASELINE)
 	goff.OptSet(venc.PrivData(), "preset", "ultrafast", goff.SearchFlags_CHILDREN)
 
-	err = venc.Open2(vcod, nil)
+	err = venc.Open2(ovcod, nil)
 	must(err)
 
 	err = ovst.CodecParameters().FromContext(venc)
+	must(err)
+
+	octx.DumpFormat(0, "", true)
 
 	frame := goff.FrameAlloc()
 	assert.NotNil(frame)
 	defer frame.Free()
 
+	var oPts goff.Timing = 0
+
 	var packet goff.Packet
+
+	writeFrames := func(last bool) {
+		for {
+			var opkt goff.Packet
+			opkt.Init()
+
+			err := venc.ReceivePacket(&opkt)
+			if err != nil {
+				if goff.IsEOF(err) {
+					// all flushed!
+					return
+				}
+				if !last && goff.IsEAGAIN(err) {
+					// will get more packets later
+					return
+				}
+				must(err)
+			}
+
+			opkt.SetPts(oPts)
+			oPts += 1
+
+			opkt.SetStreamIndex(ovst.Index())
+			err = octx.InterleavedWriteFrame(&opkt)
+			must(err)
+		}
+	}
 
 	readFrames := func() {
 		for {
@@ -107,27 +152,16 @@ func TestTranscode(t *testing.T) {
 				}
 				must(err)
 			}
+			t.Logf("Received frame! PTS %v", frame.Pts().AsDuration(vdec.TimeBase()))
+			t.Logf("Frame format: %s", frame.Format().Name())
+			t.Logf("Frame res: %dx%d", frame.Width(), frame.Height())
 			numFrames++
 
+			t.Logf("Sending frame..")
 			err = venc.SendFrame(frame)
 			must(err)
 
-			for {
-				var opkt goff.Packet
-				opkt.Init()
-
-				err = venc.ReceivePacket(&opkt)
-				if err != nil {
-					if goff.IsEAGAIN(err) {
-						return
-					}
-					must(err)
-				}
-
-				opkt.SetStreamIndex(ovst.Index())
-				err = octx.InterleavedWriteFrame(&packet)
-				must(err)
-			}
+			writeFrames(false)
 		}
 	}
 
@@ -162,29 +196,16 @@ func TestTranscode(t *testing.T) {
 		err := venc.SendFrame(nil)
 		must(err)
 
-		for {
-			var opkt goff.Packet
-			opkt.Init()
-
-			err := venc.ReceivePacket(&opkt)
-			if err != nil {
-				if goff.IsEOF(err) {
-					// all flushed!
-					return
-				}
-				must(err)
-			}
-
-			opkt.SetStreamIndex(ovst.Index())
-			err = octx.InterleavedWriteFrame(&packet)
-			must(err)
-		}
+		writeFrames(true)
 	}
 
 	flushEncoder()
 
 	t.Logf("Processed %d frames in total", numFrames)
 	assert.EqualValues(23, numFrames)
+
+	err = octx.WriteTrailer()
+	must(err)
 
 	defer ctx.Free()
 }

@@ -51,6 +51,22 @@ func (ctx *FormatContext) SetPB(pb *IOContext) {
 	ctx.pb = pb
 }
 
+func (ctx *FormatContext) InputFormat() *InputFormat {
+	return ctx.iformat
+}
+
+func (ctx *FormatContext) SetInputFormat(ifmt *InputFormat) {
+	ctx.iformat = ifmt
+}
+
+func (ctx *FormatContext) OutputFormat() *OutputFormat {
+	return ctx.oformat
+}
+
+func (ctx *FormatContext) SetOutputFormat(ofmt *OutputFormat) {
+	ctx.oformat = ofmt
+}
+
 func (ctx *FormatContext) Free() {
 	C.avformat_free_context(ctx)
 }
@@ -87,6 +103,29 @@ func (ctx *FormatContext) Streams() []*Stream {
 	return streams
 }
 
+// Add a new stream to a media file.
+//
+// When demuxing, it is called by the demuxer in read_header(). If the flag
+// AVFMTCTX_NOHEADER is set in s.ctx_flags, then it may also be called in
+// read_packet().
+//
+// When muxing, should be called by the user before avformat_write_header().
+//
+// User is required to call avcodec_close() and avformat_free_context() to clean
+// up the allocation by avformat_new_stream().
+func (ctx *FormatContext) NewStream(c *Codec) *Stream {
+	return C.avformat_new_stream(ctx, c)
+}
+
+// Print detailed information about the input or output format, such as
+// duration, bitrate, streams, container, programs, metadata, side data, codec
+// and time base.
+//
+// Parameters
+//   ic	the context to analyze
+//   index	index of the stream to dump information about
+//   url	the URL to print, such as source or destination file
+//   is_output Select whether the specified context is an input(0) or output(1)
 func (ctx *FormatContext) DumpFormat(index int, url string, isOutput bool) {
 	url_ := CString(url)
 	defer FreeString(url_)
@@ -154,20 +193,15 @@ func (ctx *FormatContext) InterleavedWriteFrame(pkt *Packet) error {
 	return CheckErr(C.av_interleaved_write_frame(ctx, pkt))
 }
 
-// Add a new stream to a media file.
+// Write the stream trailer to an output media file and free the file private data.
 //
-// When demuxing, it is called by the demuxer in read_header(). If the flag
-// AVFMTCTX_NOHEADER is set in s.ctx_flags, then it may also be called in
-// read_packet().
+// May only be called after a successful call to avformat_write_header.
 //
-// When muxing, should be called by the user before avformat_write_header().
+// Parameters
+//     s	media file handle
 //
-// User is required to call avcodec_close() and avformat_free_context() to clean
-// up the allocation by avformat_new_stream().
-func (ctx *FormatContext) NewStream(c *Codec) *Stream {
-	return C.avformat_new_stream(ctx, c)
-}
-
+// Returns
+//     0 if OK, AVERROR_xxx on error
 func (ctx *FormatContext) WriteTrailer() error {
 	return CheckErr(C.av_write_trailer(ctx))
 }

@@ -14,13 +14,7 @@ import (
 	"unsafe"
 )
 
-//------------------------------------
-// @Frame
-//------------------------------------
-
-type (
-	Frame = C.struct_AVFrame
-)
+type Frame = C.struct_AVFrame
 
 // Allocate an AVFrame and set its fields to default values.
 //
@@ -85,6 +79,10 @@ func (frame *Frame) MakeWritable() error {
 // Presentation timestamp in time_base units (time when frame should be shown to user).
 func (frame *Frame) Pts() Timing {
 	return frame.pts
+}
+
+func (frame *Frame) SetPts(pts Timing) {
+	frame.pts = pts
 }
 
 func (frame *Frame) Width() int {

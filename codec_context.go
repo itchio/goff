@@ -68,6 +68,22 @@ func (cctx *CodecContext) SetTimeBase(tb Rational) {
 	cctx.time_base = tb
 }
 
+func (cctx *CodecContext) Width() int {
+	return int(cctx.width)
+}
+
+func (cctx *CodecContext) SetWidth(x int) {
+	cctx.width = C.int(x)
+}
+
+func (cctx *CodecContext) Height() int {
+	return int(cctx.height)
+}
+
+func (cctx *CodecContext) SetHeight(x int) {
+	cctx.height = C.int(x)
+}
+
 func (cctx *CodecContext) GOPSize() int {
 	return int(cctx.gop_size)
 }
