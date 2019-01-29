@@ -193,6 +193,28 @@ func (ctx *FormatContext) InterleavedWriteFrame(pkt *Packet) error {
 	return CheckErr(C.av_interleaved_write_frame(ctx, pkt))
 }
 
+// Allocate the stream private data and write the stream header to an output media file.
+//
+// Parameters
+//   s Media file handle, must be allocated with avformat_alloc_context(). Its
+//   oformat field must be set to the desired output format; Its pb field must be
+//   set to an already opened AVIOContext.
+//   options An AVDictionary filled with AVFormatContext and muxer-private
+//   options. On return this parameter will be destroyed and replaced with a dict
+//   containing options that were not found. May be NULL.
+//
+// Returns
+//   AVSTREAM_INIT_IN_WRITE_HEADER on success if the codec had not already been
+//   fully initialized in avformat_init, AVSTREAM_INIT_IN_INIT_OUTPUT on success
+//   if the codec had already been fully initialized in avformat_init, negative
+//   AVERROR on failure.
+//
+// See Also
+//   av_opt_find, av_dict_set, avio_open, av_oformat_next, avformat_init_output.
+func (ctx *FormatContext) WriteHeader(options **Dictionary) error {
+	return CheckErr(C.avformat_write_header(ctx, options))
+}
+
 // Write the stream trailer to an output media file and free the file private data.
 //
 // May only be called after a successful call to avformat_write_header.

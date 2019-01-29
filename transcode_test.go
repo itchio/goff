@@ -10,8 +10,8 @@ import (
 func TestTranscode(t *testing.T) {
 	assert := assert.New(t)
 
-	goff.LogSetCallback(func(line string) {
-		t.Logf(line)
+	goff.LogSetCallback(goff.LogLevel_VERBOSE, func(level goff.LogLevel, line string) {
+		t.Logf("[%s] %s", level, line)
 	})
 
 	must := func(err error) {
@@ -23,75 +23,77 @@ func TestTranscode(t *testing.T) {
 
 	t.Logf("Opening input...")
 
-	ctx, err := goff.FormatOpenInput("testdata/sample.mp4", nil, nil)
+	inputPath := "testdata/sample.mp4"
+
+	inputFormatContext, err := goff.FormatOpenInput(inputPath, nil, nil)
 	must(err)
 
-	err = ctx.FindStreamInfo(nil)
+	err = inputFormatContext.FindStreamInfo(nil)
 	must(err)
 
-	assert.EqualValues(2, ctx.NbStreams())
+	assert.EqualValues(2, inputFormatContext.NbStreams())
 
-	vst := ctx.Streams()[0]
-	assert.EqualValues("video", vst.CodecParameters().CodecType().String())
+	inputVideoStream := inputFormatContext.Streams()[0]
+	assert.EqualValues("video", inputVideoStream.CodecParameters().CodecType().String())
 
-	ctx.DumpFormat(0, "", false)
+	inputFormatContext.DumpFormat(0, inputPath, false)
 
 	numFrames := 0
 
-	vcod := vst.CodecParameters().CodecID().FindDecoder()
-	assert.NotNil(vcod)
+	inputVideoDecoder := inputVideoStream.CodecParameters().CodecID().FindDecoder()
+	assert.NotNil(inputVideoDecoder)
 
-	vdec := vcod.AllocContext3()
-	assert.NotNil(vdec)
+	inputVideoDecoderContext := inputVideoDecoder.AllocContext3()
+	assert.NotNil(inputVideoDecoderContext)
 
-	vst.CodecParameters().ToContext(vdec)
+	inputVideoStream.CodecParameters().ToContext(inputVideoDecoderContext)
 
-	err = vdec.Open2(vcod, nil)
+	err = inputVideoDecoderContext.Open2(inputVideoDecoder, nil)
 	must(err)
 
 	t.Logf("Opening output...")
 
 	outPath := "out.mp4"
 
-	var pb *goff.IOContext
-	err = goff.IOOpen(&pb, outPath, goff.IO_FLAG_WRITE)
+	var outputIOContext *goff.IOContext
+	err = goff.IOOpen(&outputIOContext, outPath, goff.IO_FLAG_WRITE)
 	must(err)
-	defer pb.Close()
+	defer outputIOContext.Close()
 
-	ofmt := goff.GuessFormat("mp4", "", "")
-	if ofmt == nil {
-		assert.NotNil(ofmt)
+	outputFormat := goff.GuessFormat("mp4", "", "")
+	if outputFormat == nil {
+		assert.NotNil(outputFormat)
 		t.FailNow()
 	}
-	t.Logf("Guessed format: %s", ofmt.LongName())
+	t.Logf("Guessed format: %s", outputFormat.LongName())
 
-	octx, err := goff.FormatAllocOutputContext2(ofmt, "", outPath)
+	outputFormatContext, err := goff.FormatAllocOutputContext2(outputFormat, "", outPath)
 	must(err)
-	defer octx.Free()
+	defer outputFormatContext.Free()
 
-	octx.SetPB(pb)
-	octx.SetOutputFormat(ofmt)
+	outputFormatContext.SetPB(outputIOContext)
+	outputFormatContext.SetOutputFormat(outputFormat)
 
-	ovst := octx.NewStream(vcod)
-	ovst.SetID(0)
+	outputVideoStream := outputFormatContext.NewStream(inputVideoDecoder)
+	outputVideoStream.SetID(0)
 
-	ocid := goff.CodecID_H264
-	ovcod := ocid.FindEncoder()
-	assert.NotNil(ovcod)
+	outputCodecID := goff.CodecID_H264
+	oinputVideoDecoder := outputCodecID.FindEncoder()
+	assert.NotNil(oinputVideoDecoder)
 
-	venc := ovcod.AllocContext3()
+	venc := oinputVideoDecoder.AllocContext3()
 	assert.NotNil(venc)
 
 	venc.SetCodecType(goff.MediaType_Video)
 	venc.SetCodecID(goff.CodecID_H264)
 	venc.SetPixelFormat(goff.PixelFormat_YUV420P)
 
-	ovst.SetTimeBase(goff.TIME_BASE_Q)
-	venc.SetTimeBase(ovst.TimeBase())
+	outputVideoStream.SetTimeBase(goff.TIME_BASE_Q)
+	venc.SetTimeBase(outputVideoStream.TimeBase())
 	venc.SetGOPSize(120)
 	venc.SetMaxBFrames(16)
-	venc.SetWidth(vdec.Width())
-	venc.SetHeight(vdec.Height())
+	venc.SetWidth(inputVideoDecoderContext.Width())
+	venc.SetHeight(inputVideoDecoderContext.Height())
 
 	crf := 20
 	venc.SetQMin(crf)
@@ -100,28 +102,30 @@ func TestTranscode(t *testing.T) {
 	venc.SetProfile(goff.Profile_H264_BASELINE)
 	goff.OptSet(venc.PrivData(), "preset", "ultrafast", goff.SearchFlags_CHILDREN)
 
-	err = venc.Open2(ovcod, nil)
+	err = venc.Open2(oinputVideoDecoder, nil)
 	must(err)
 
-	err = ovst.CodecParameters().FromContext(venc)
+	err = outputVideoStream.CodecParameters().FromContext(venc)
 	must(err)
 
-	octx.DumpFormat(0, "", true)
+	outputFormatContext.DumpFormat(0, outPath, true)
 
-	frame := goff.FrameAlloc()
-	assert.NotNil(frame)
-	defer frame.Free()
+	must(outputFormatContext.WriteHeader(nil))
 
-	var oPts goff.Timing = 0
+	inputFrame := goff.FrameAlloc()
+	assert.NotNil(inputFrame)
+	defer inputFrame.Free()
+
+	var outputPts goff.Timing = 0
 
 	var packet goff.Packet
 
-	writeFrames := func(last bool) {
+	writeEncodedPackets := func(last bool) {
 		for {
-			var opkt goff.Packet
-			opkt.Init()
+			var outPacket goff.Packet
+			outPacket.Init()
 
-			err := venc.ReceivePacket(&opkt)
+			err := venc.ReceivePacket(&outPacket)
 			if err != nil {
 				if goff.IsEOF(err) {
 					// all flushed!
@@ -134,41 +138,42 @@ func TestTranscode(t *testing.T) {
 				must(err)
 			}
 
-			opkt.SetPts(oPts)
-			oPts += 1
+			outPacket.SetPts(outputPts)
+			outPacket.SetDts(outputPts)
+			outputPts += 1
 
-			opkt.SetStreamIndex(ovst.Index())
-			err = octx.InterleavedWriteFrame(&opkt)
+			outPacket.SetStreamIndex(outputVideoStream.Index())
+			err = outputFormatContext.InterleavedWriteFrame(&outPacket)
 			must(err)
 		}
 	}
 
-	readFrames := func() {
+	receiveDecodedFrames := func() {
 		for {
-			err = vdec.ReceiveFrame(frame)
+			err = inputVideoDecoderContext.ReceiveFrame(inputFrame)
 			if err != nil {
 				if goff.IsEAGAIN(err) || goff.IsEOF(err) {
 					return
 				}
 				must(err)
 			}
-			t.Logf("Received frame! PTS %v", frame.Pts().AsDuration(vdec.TimeBase()))
-			t.Logf("Frame format: %s", frame.Format().Name())
-			t.Logf("Frame res: %dx%d", frame.Width(), frame.Height())
+			t.Logf("Received inputFrame! PTS %v", inputFrame.Pts().AsDuration(inputVideoDecoderContext.TimeBase()))
+			t.Logf("Frame format: %s", inputFrame.Format().Name())
+			t.Logf("Frame res: %dx%d", inputFrame.Width(), inputFrame.Height())
 			numFrames++
 
-			t.Logf("Sending frame..")
-			err = venc.SendFrame(frame)
+			t.Logf("Sending inputFrame..")
+			err = venc.SendFrame(inputFrame)
 			must(err)
 
-			writeFrames(false)
+			writeEncodedPackets(false)
 		}
 	}
 
 	for {
 		packet.Init()
 
-		err = ctx.ReadFrame(&packet)
+		err = inputFormatContext.ReadFrame(&packet)
 		if err != nil {
 			if goff.IsEOF(err) {
 				break
@@ -176,36 +181,36 @@ func TestTranscode(t *testing.T) {
 			must(err)
 		}
 
-		if packet.StreamIndex() != vst.Index() {
+		if packet.StreamIndex() != inputVideoStream.Index() {
 			// ignore audio packets
 			continue
 		}
 
-		packet.RescaleTs(vst.TimeBase(), vdec.TimeBase())
+		packet.RescaleTs(inputVideoStream.TimeBase(), inputVideoDecoderContext.TimeBase())
 
-		err = vdec.SendPacket(&packet)
+		err = inputVideoDecoderContext.SendPacket(&packet)
 		if err != nil {
 			must(err)
 		}
 
-		readFrames()
+		receiveDecodedFrames()
 	}
-	readFrames()
+	receiveDecodedFrames()
 
 	flushEncoder := func() {
 		err := venc.SendFrame(nil)
 		must(err)
 
-		writeFrames(true)
+		writeEncodedPackets(true)
 	}
 
 	flushEncoder()
 
-	t.Logf("Processed %d frames in total", numFrames)
+	t.Logf("Processed %d inputFrames in total", numFrames)
 	assert.EqualValues(23, numFrames)
 
-	err = octx.WriteTrailer()
+	err = outputFormatContext.WriteTrailer()
 	must(err)
 
-	defer ctx.Free()
+	defer inputFormatContext.Free()
 }

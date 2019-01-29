@@ -42,3 +42,10 @@ func IOOpen(ctx **IOContext, url string, flags IOFlags) error {
 func (ctx *IOContext) Close() error {
 	return CheckErr(C.avio_close(ctx))
 }
+
+func (ctx *IOContext) PutStr(s string) error {
+	s_ := CString(s)
+	defer FreeString(s_)
+
+	return CheckErr(C.avio_put_str(ctx, s_))
+}
