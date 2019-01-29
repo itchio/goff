@@ -10,7 +10,7 @@ import (
 func TestTranscode(t *testing.T) {
 	assert := assert.New(t)
 
-	goff.LogSetCallback(goff.LogLevel_VERBOSE, func(level goff.LogLevel, line string) {
+	goff.LogSetCallback(goff.LogLevel_DEBUG, func(level goff.LogLevel, line string) {
 		t.Logf("[%s] %s", level, line)
 	})
 
@@ -81,31 +81,31 @@ func TestTranscode(t *testing.T) {
 	oinputVideoDecoder := outputCodecID.FindEncoder()
 	assert.NotNil(oinputVideoDecoder)
 
-	venc := oinputVideoDecoder.AllocContext3()
-	assert.NotNil(venc)
+	outputVideoEncoderContext := oinputVideoDecoder.AllocContext3()
+	assert.NotNil(outputVideoEncoderContext)
 
-	venc.SetCodecType(goff.MediaType_Video)
-	venc.SetCodecID(goff.CodecID_H264)
-	venc.SetPixelFormat(goff.PixelFormat_YUV420P)
+	outputVideoEncoderContext.SetCodecType(goff.MediaType_Video)
+	outputVideoEncoderContext.SetCodecID(goff.CodecID_H264)
+	outputVideoEncoderContext.SetPixelFormat(goff.PixelFormat_YUV420P)
 
 	outputVideoStream.SetTimeBase(goff.TIME_BASE_Q)
-	venc.SetTimeBase(outputVideoStream.TimeBase())
-	venc.SetGOPSize(120)
-	venc.SetMaxBFrames(16)
-	venc.SetWidth(inputVideoDecoderContext.Width())
-	venc.SetHeight(inputVideoDecoderContext.Height())
+	outputVideoEncoderContext.SetTimeBase(goff.TIME_BASE_Q)
+	outputVideoEncoderContext.SetGOPSize(120)
+	outputVideoEncoderContext.SetMaxBFrames(16)
+	outputVideoEncoderContext.SetWidth(inputVideoDecoderContext.Width())
+	outputVideoEncoderContext.SetHeight(inputVideoDecoderContext.Height())
 
 	crf := 20
-	venc.SetQMin(crf)
-	venc.SetQMax(crf)
-	venc.OrFlag(goff.CodecFlags_GLOBAL_HEADER)
-	venc.SetProfile(goff.Profile_H264_BASELINE)
-	goff.OptSet(venc.PrivData(), "preset", "ultrafast", goff.SearchFlags_CHILDREN)
+	outputVideoEncoderContext.SetQMin(crf)
+	outputVideoEncoderContext.SetQMax(crf)
+	outputVideoEncoderContext.OrFlag(goff.CodecFlags_GLOBAL_HEADER)
+	outputVideoEncoderContext.SetProfile(goff.Profile_H264_BASELINE)
+	goff.OptSet(outputVideoEncoderContext.PrivData(), "preset", "ultrafast", goff.SearchFlags_CHILDREN)
 
-	err = venc.Open2(oinputVideoDecoder, nil)
+	err = outputVideoEncoderContext.Open2(oinputVideoDecoder, nil)
 	must(err)
 
-	err = outputVideoStream.CodecParameters().FromContext(venc)
+	err = outputVideoStream.CodecParameters().FromContext(outputVideoEncoderContext)
 	must(err)
 
 	outputFormatContext.DumpFormat(0, outPath, true)
@@ -116,8 +116,6 @@ func TestTranscode(t *testing.T) {
 	assert.NotNil(inputFrame)
 	defer inputFrame.Free()
 
-	var outputPts goff.Timing = 0
-
 	var packet goff.Packet
 
 	writeEncodedPackets := func(last bool) {
@@ -125,7 +123,7 @@ func TestTranscode(t *testing.T) {
 			var outPacket goff.Packet
 			outPacket.Init()
 
-			err := venc.ReceivePacket(&outPacket)
+			err := outputVideoEncoderContext.ReceivePacket(&outPacket)
 			if err != nil {
 				if goff.IsEOF(err) {
 					// all flushed!
@@ -137,10 +135,6 @@ func TestTranscode(t *testing.T) {
 				}
 				must(err)
 			}
-
-			outPacket.SetPts(outputPts)
-			outPacket.SetDts(outputPts)
-			outputPts += 1
 
 			outPacket.SetStreamIndex(outputVideoStream.Index())
 			err = outputFormatContext.InterleavedWriteFrame(&outPacket)
@@ -157,13 +151,15 @@ func TestTranscode(t *testing.T) {
 				}
 				must(err)
 			}
-			t.Logf("Received inputFrame! PTS %v", inputFrame.Pts().AsDuration(inputVideoDecoderContext.TimeBase()))
-			t.Logf("Frame format: %s", inputFrame.Format().Name())
-			t.Logf("Frame res: %dx%d", inputFrame.Width(), inputFrame.Height())
 			numFrames++
 
-			t.Logf("Sending inputFrame..")
-			err = venc.SendFrame(inputFrame)
+			scaledPts := inputFrame.Pts().Rescale(inputVideoDecoderContext.TimeBase(), outputVideoEncoderContext.TimeBase())
+			if scaledPts.IsNop() {
+				scaledPts = 0
+			}
+			inputFrame.SetPts(scaledPts)
+
+			err = outputVideoEncoderContext.SendFrame(inputFrame)
 			must(err)
 
 			writeEncodedPackets(false)
@@ -198,7 +194,7 @@ func TestTranscode(t *testing.T) {
 	receiveDecodedFrames()
 
 	flushEncoder := func() {
-		err := venc.SendFrame(nil)
+		err := outputVideoEncoderContext.SendFrame(nil)
 		must(err)
 
 		writeEncodedPackets(true)

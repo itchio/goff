@@ -13,14 +13,14 @@ package goff
 import "C"
 
 var log_callback LogCallback
-var log_min_level LogLevel
+var log_max_level LogLevel
 
 type LogCallback func(level LogLevel, line string)
 type CLogCallback = *[0]byte
 
-func LogSetCallback(minLevel LogLevel, lc LogCallback) {
+func LogSetCallback(maxLevel LogLevel, lc LogCallback) {
 	log_callback = lc
-	log_min_level = minLevel
+	log_max_level = maxLevel
 
 	if log_callback == nil {
 		C.av_log_set_callback(CLogCallback(C.av_log_default_callback))
@@ -87,7 +87,7 @@ func goff_should_send_log(level C.int) C.int {
 	if log_callback == nil {
 		return 0
 	}
-	if level < C.int(log_min_level) {
+	if level > C.int(log_max_level) {
 		return 0
 	}
 	return 1
