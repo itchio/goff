@@ -50,6 +50,13 @@ func (r Rational) String() string {
 	return fmt.Sprintf("%d/%d", r.num, r.den)
 }
 
+func NewRational(num int, den int) Rational {
+	var r Rational
+	r.num = C.int(num)
+	r.den = C.int(den)
+	return r
+}
+
 func (r Rational) Num() int {
 	return int(r.num)
 }

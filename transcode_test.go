@@ -89,17 +89,10 @@ func TestTranscode(t *testing.T) {
 	outputVideoEncoderContext.SetPixelFormat(goff.PixelFormat_YUV420P)
 
 	outputVideoStream.SetTimeBase(goff.TIME_BASE_Q)
-	outputVideoEncoderContext.SetTimeBase(goff.TIME_BASE_Q)
-	outputVideoEncoderContext.SetGOPSize(120)
-	outputVideoEncoderContext.SetMaxBFrames(16)
+	outputVideoEncoderContext.SetTimeBase(goff.NewRational(1, 120))
 	outputVideoEncoderContext.SetWidth(inputVideoDecoderContext.Width())
 	outputVideoEncoderContext.SetHeight(inputVideoDecoderContext.Height())
 
-	crf := 20
-	outputVideoEncoderContext.SetQMin(crf)
-	outputVideoEncoderContext.SetQMax(crf)
-	outputVideoEncoderContext.OrFlag(goff.CodecFlags_GLOBAL_HEADER)
-	outputVideoEncoderContext.SetProfile(goff.Profile_H264_BASELINE)
 	goff.OptSet(outputVideoEncoderContext.PrivData(), "preset", "ultrafast", goff.SearchFlags_CHILDREN)
 
 	err = outputVideoEncoderContext.Open2(oinputVideoDecoder, nil)
@@ -137,6 +130,8 @@ func TestTranscode(t *testing.T) {
 			}
 
 			outPacket.SetStreamIndex(outputVideoStream.Index())
+			outPacket.RescaleTs(outputVideoEncoderContext.TimeBase(), outputVideoStream.TimeBase())
+
 			err = outputFormatContext.InterleavedWriteFrame(&outPacket)
 			must(err)
 		}
