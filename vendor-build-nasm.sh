@@ -6,6 +6,7 @@ pushd $PREFIX/src/nasm*
 ./configure \
     --prefix=$PREFIX
 make -j
+touch nasm.1 ndisasm.1 # don't ask
 make install
 popd
 
