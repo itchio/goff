@@ -137,3 +137,11 @@ type Linesizes = [8]Linesize
 func (frame *Frame) Linesize() Linesizes {
 	return frame.linesize
 }
+
+func (frame *Frame) PictType() PictureType {
+	return PictureType(frame.pict_type)
+}
+
+func (frame *Frame) SetPictType(pt PictureType) {
+	frame.pict_type = uint32(pt)
+}
