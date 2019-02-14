@@ -32,11 +32,13 @@ type IOContext = C.AVIOContext
 //
 // Returns
 //   >= 0 in case of success, a negative value corresponding to an AVERROR code in case of failure
-func IOOpen(ctx **IOContext, url string, flags IOFlags) error {
+func IOOpen(url string, flags IOFlags) (*IOContext, error) {
 	url_ := CString(url)
 	defer FreeString(url_)
 
-	return CheckErr(C.avio_open(ctx, url_, C.int(flags)))
+	var ctx *IOContext
+	err := CheckErr(C.avio_open(&ctx, url_, C.int(flags)))
+	return ctx, err
 }
 
 func (ctx *IOContext) Close() error {
