@@ -63,3 +63,7 @@ func (swctx *SwsContext) Scale(
 		(*C.int)(&dstStride[0]),
 	))
 }
+
+func (swctx *SwsContext) Free() {
+	C.sws_freeContext(swctx)
+}
