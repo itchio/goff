@@ -55,8 +55,7 @@ func TestTranscode(t *testing.T) {
 
 	outPath := "out.mp4"
 
-	var outputIOContext *goff.IOContext
-	err = goff.IOOpen(&outputIOContext, outPath, goff.IO_FLAG_WRITE)
+	outputIOContext, err := goff.IOOpen(outPath, goff.IO_FLAG_WRITE)
 	must(err)
 	defer outputIOContext.Close()
 
