@@ -25,10 +25,10 @@ package goff
 // void goff_log_callback_trampoline(void *ptr, int level, const char *fmt, va_list vl);
 import "C"
 import (
-	"unsafe"
-	"reflect"
 	"fmt"
+	"reflect"
 	"time"
+	"unsafe"
 
 	"github.com/pkg/errors"
 )
@@ -1093,7 +1093,6 @@ func (e *DictionaryEntry) Value() string {
 	return C.GoString(e.value)
 }
 
-
 type ErrNum = C.int
 
 type Error struct {
@@ -1181,7 +1180,6 @@ var (
 	ERROR_HTTP_SERVER_ERROR ErrNum = C.AVERROR_HTTP_SERVER_ERROR
 )
 
-
 type FormatContext = C.struct_AVFormatContext
 type InputFormat = C.struct_AVInputFormat
 type OutputFormat = C.struct_AVOutputFormat
@@ -1209,6 +1207,23 @@ func FormatAllocOutputContext2(oformat *OutputFormat, formatName string, filenam
 
 	ret := C.avformat_alloc_output_context2(&ctx, oformat, formatName_, filename_)
 	return ctx, CheckErr(ret)
+}
+
+type SeekFlag int
+
+const (
+	// Seek backward
+	SeekFlagBackward SeekFlag = C.AVSEEK_FLAG_BACKWARD
+	// Seeking based on position in bytes
+	SeekFlagByte SeekFlag = C.AVSEEK_FLAG_BYTE
+	// Seek to any frame, even non-keyframes
+	SeekFlagAny SeekFlag = C.AVSEEK_FLAG_ANY
+	// Seeking based on frame number
+	SeekFlagFrame SeekFlag = C.AVSEEK_FLAG_FRAME
+)
+
+func (ctx *FormatContext) Seek(streamIndex int, timestamp Timing, flags SeekFlag) error {
+	return CheckErr(C.av_seek_frame(ctx, C.int(streamIndex), timestamp, C.int(flags)))
 }
 
 func (ctx *FormatContext) PB() *IOContext {
@@ -1802,7 +1817,6 @@ func (pkt *Packet) RescaleTs(tbSrc Rational, tbDst Rational) {
 	C.av_packet_rescale_ts(pkt, tbSrc, tbDst)
 }
 
-
 type PictureType C.enum_AVPictureType
 
 var (
@@ -2202,7 +2216,6 @@ func (swctx *SwsContext) Scale(
 func (swctx *SwsContext) Free() {
 	C.sws_freeContext(swctx)
 }
-
 
 type Rational = C.struct_AVRational
 type Timing = C.int64_t
