@@ -94,6 +94,30 @@ func (cctx *CodecContext) SetCodecType(mt MediaType) {
 	cctx.codec_type = int32(mt)
 }
 
+func (cctx *CodecContext) ThreadCount() int {
+	return int(cctx.thread_count)
+}
+
+func (cctx *CodecContext) SetThreadCount(tc int) {
+	cctx.thread_count = C.int(tc)
+}
+
+type ThreadType = C.int
+
+var (
+	ThreadType_UNSET ThreadType = 0
+	ThreadType_FRAME ThreadType = C.FF_THREAD_FRAME
+	ThreadType_SLICE ThreadType = C.FF_THREAD_SLICE
+)
+
+func (cctx *CodecContext) ThreadType() ThreadType {
+	return ThreadType(cctx.thread_type)
+}
+
+func (cctx *CodecContext) SetThreadType(tt ThreadType) {
+	cctx.thread_type = C.int(tt)
+}
+
 func (cctx *CodecContext) PixelFormat() PixelFormat {
 	return PixelFormat(cctx.pix_fmt)
 }
