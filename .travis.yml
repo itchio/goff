@@ -8,7 +8,7 @@ addons:
 before_script:
   - source vendor-env.sh
   # for nasm
-  - export PATH=$PATH:$PREFIX/bin
+  - export PATH=$PATH:$GOFF_PREFIX/bin
   - ./vendor-all.sh
 
 script:
