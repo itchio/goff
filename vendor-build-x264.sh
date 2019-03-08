@@ -3,8 +3,10 @@ source vendor-env.sh
 
 pushd $PREFIX/src/x264-snapshot*
 ./configure \
-    --disable-cli --enable-shared \
-    --enable-pic --enable-lto \
+    --disable-cli --enable-static \
+    --bit-depth=8 --chroma-format=420 \
+    --disable-interlaced \
+    --enable-pic --enable-lto --enable-strip \
     --prefix=$PREFIX
 make -j
 make install
