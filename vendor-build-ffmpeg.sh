@@ -1,7 +1,7 @@
 #!/bin/bash -xe
 source vendor-env.sh
 
-pushd $PREFIX/src/ffmpeg*
+pushd $GOFF_PREFIX/src/ffmpeg*
 ./configure \
     --disable-all --disable-network --enable-pthreads \
     --enable-gpl --enable-libx264 \
@@ -12,7 +12,7 @@ pushd $PREFIX/src/ffmpeg*
     --enable-protocol=file \
     --disable-shared --enable-static \
     --enable-pic \
-    --prefix=$PREFIX
+    --prefix=$GOFF_PREFIX
 make -j
 make install
 popd
