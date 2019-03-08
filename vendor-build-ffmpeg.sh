@@ -11,7 +11,7 @@ pushd $PREFIX/src/ffmpeg*
     --enable-decoder=aac --enable-encoder=aac \
     --enable-protocol=file \
     --disable-shared --enable-static \
-    --enable-pic --enable-lto \
+    --enable-pic \
     --prefix=$PREFIX
 make -j
 make install

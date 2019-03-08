@@ -6,7 +6,7 @@ pushd $PREFIX/src/x264-snapshot*
     --disable-cli --enable-static \
     --bit-depth=8 --chroma-format=420 \
     --disable-interlaced \
-    --enable-pic --enable-lto --enable-strip \
+    --enable-pic --enable-strip \
     --prefix=$PREFIX
 make -j
 make install
