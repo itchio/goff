@@ -1552,6 +1552,21 @@ func (frame *Frame) SetPts(pts Timing) {
 	frame.pts = pts
 }
 
+// frame timestamp estimated using various heuristics, in stream time base
+func (frame *Frame) BestEffortTimestamp() Timing {
+	return frame.best_effort_timestamp
+}
+
+// DTS copied from the AVPacket that triggered returning this frame.
+func (frame *Frame) PktDts() Timing {
+	return frame.pkt_dts
+}
+
+// duration of the corresponding packet, expressed in AVStream->time_base units, 0 if unknown.
+func (frame *Frame) PktDuration() Timing {
+	return frame.pkt_duration
+}
+
 func (frame *Frame) Width() int {
 	return int(frame.width)
 }
