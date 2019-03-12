@@ -2189,6 +2189,10 @@ func (s *Stream) NbFrames() int64 {
 	return int64(s.nb_frames)
 }
 
+func (s *Stream) AvgFrameRate() Rational {
+	return s.avg_frame_rate
+}
+
 func (s *Stream) CodecParameters() *CodecParameters {
 	return s.codecpar
 }
@@ -2305,4 +2309,12 @@ func (r Rational) Num() int {
 
 func (r Rational) Den() int {
 	return int(r.den)
+}
+
+func (r Rational) Mul(r2 Rational) Rational {
+	return C.av_mul_q(r, r2)
+}
+
+func (r Rational) Div(r2 Rational) Rational {
+	return C.av_div_q(r, r2)
 }
