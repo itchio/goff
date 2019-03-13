@@ -1233,6 +1233,18 @@ func FormatAllocOutputContext2(oformat *OutputFormat, formatName string, filenam
 	return ctx, CheckErr(ret)
 }
 
+func FormatAllocContext() *FormatContext {
+	return C.avformat_alloc_context()
+}
+
+func (ctx *FormatContext) OpenInput(url string, format *InputFormat, options **Dictionary) error {
+	url_ := CString(url)
+	defer FreeString(url_)
+
+	ret := C.avformat_open_input(&ctx, url_, format, options)
+	return CheckErr(ret)
+}
+
 type SeekFlag int
 
 const (
@@ -1673,7 +1685,7 @@ func (ctx *IOContext) PutStr(s string) error {
 var log_callback LogCallback
 var log_max_level LogLevel
 
-type LogCallback func(level LogLevel, line string)
+type LogCallback func(ptr uintptr, level LogLevel, line string, printPrefix bool)
 type CLogCallback = *[0]byte
 
 func LogSetCallback(maxLevel LogLevel, lc LogCallback) {
@@ -1734,9 +1746,14 @@ func (ll LogLevel) String() string {
 }
 
 //export goff_send_log_to_go
-func goff_send_log_to_go(level C.int, line *C.char) {
+func goff_send_log_to_go(ptr uintptr, level C.int, line *C.char, _printPrefix C.int) {
+	printPrefix := false
+	if _printPrefix == 1 {
+		printPrefix = true
+	}
+
 	if log_callback != nil {
-		log_callback(LogLevel(level), C.GoString(line))
+		log_callback(uintptr(ptr), LogLevel(level), C.GoString(line), printPrefix)
 	}
 }
 

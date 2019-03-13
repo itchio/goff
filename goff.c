@@ -8,13 +8,15 @@
 
 #include "_cgo_export.h"
 
+#define _GOFF_LOG_BUFFER_SIZE 1024
+
 void goff_log_callback_trampoline(void *ptr, int level, const char *fmt, va_list vl) {
   if (!goff_should_send_log(level)) {
     return;
   }
 
-  char line[1024];
+  char line[_GOFF_LOG_BUFFER_SIZE];
   static int print_prefix = 1;
-  av_log_format_line(ptr, level, fmt, vl, line, 1024, &print_prefix);
-  goff_send_log_to_go(level, line);
+  vsnprintf(line, _GOFF_LOG_BUFFER_SIZE, fmt, vl);
+  goff_send_log_to_go((uintptr_t)(ptr), level, line, print_prefix);
 }

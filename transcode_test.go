@@ -2,6 +2,7 @@ package goff_test
 
 import (
 	"testing"
+	"unsafe"
 
 	"github.com/itchio/goff"
 	"github.com/stretchr/testify/assert"
@@ -10,8 +11,14 @@ import (
 func TestTranscode(t *testing.T) {
 	assert := assert.New(t)
 
-	goff.LogSetCallback(goff.LogLevel_DEBUG, func(level goff.LogLevel, line string) {
-		t.Logf("[%s] %s", level, line)
+	loggedObjects := make(map[uintptr]string)
+
+	goff.LogSetCallback(goff.LogLevel_DEBUG, func(ptr uintptr, level goff.LogLevel, line string, printPrefix bool) {
+		if lo, ok := loggedObjects[ptr]; ok {
+			t.Logf("(%s) %s", lo, line)
+		} else {
+			t.Logf("(unknown %x) %s", ptr, line)
+		}
 	})
 
 	must := func(err error) {
@@ -25,10 +32,10 @@ func TestTranscode(t *testing.T) {
 
 	inputPath := "testdata/sample.mp4"
 
-	inputFormatContext, err := goff.FormatOpenInput(inputPath, nil, nil)
-	must(err)
+	inputFormatContext := goff.FormatAllocContext()
+	loggedObjects[uintptr(unsafe.Pointer(inputFormatContext))] = "demuxer"
 
-	err = inputFormatContext.FindStreamInfo(nil)
+	err := inputFormatContext.OpenInput(inputPath, nil, nil)
 	must(err)
 
 	assert.EqualValues(2, inputFormatContext.NbStreams())
@@ -45,6 +52,7 @@ func TestTranscode(t *testing.T) {
 
 	inputVideoDecoderContext := inputVideoDecoder.AllocContext3()
 	assert.NotNil(inputVideoDecoderContext)
+	loggedObjects[uintptr(unsafe.Pointer(inputVideoDecoderContext))] = "decoder"
 
 	inputVideoStream.CodecParameters().ToContext(inputVideoDecoderContext)
 
@@ -58,6 +66,7 @@ func TestTranscode(t *testing.T) {
 	outputIOContext, err := goff.IOOpen(outPath, goff.IO_FLAG_WRITE)
 	must(err)
 	defer outputIOContext.Close()
+	loggedObjects[uintptr(unsafe.Pointer(outputIOContext))] = "output-io"
 
 	outputFormat := goff.GuessFormat("mp4", "", "")
 	if outputFormat == nil {
@@ -69,6 +78,7 @@ func TestTranscode(t *testing.T) {
 	outputFormatContext, err := goff.FormatAllocOutputContext2(outputFormat, "", outPath)
 	must(err)
 	defer outputFormatContext.Free()
+	loggedObjects[uintptr(unsafe.Pointer(outputFormatContext))] = "muxer"
 
 	outputFormatContext.SetPB(outputIOContext)
 	outputFormatContext.SetOutputFormat(outputFormat)
@@ -77,11 +87,12 @@ func TestTranscode(t *testing.T) {
 	outputVideoStream.SetID(0)
 
 	outputCodecID := goff.CodecID_H264
-	oinputVideoDecoder := outputCodecID.FindEncoder()
-	assert.NotNil(oinputVideoDecoder)
+	outputVideoEncoder := outputCodecID.FindEncoder()
+	assert.NotNil(outputVideoEncoder)
 
-	outputVideoEncoderContext := oinputVideoDecoder.AllocContext3()
+	outputVideoEncoderContext := outputVideoEncoder.AllocContext3()
 	assert.NotNil(outputVideoEncoderContext)
+	loggedObjects[uintptr(unsafe.Pointer(outputVideoEncoderContext))] = "encoder"
 
 	outputVideoEncoderContext.SetCodecType(goff.MediaType_Video)
 	outputVideoEncoderContext.SetCodecID(goff.CodecID_H264)
@@ -94,13 +105,13 @@ func TestTranscode(t *testing.T) {
 
 	goff.OptSet(outputVideoEncoderContext.PrivData(), "preset", "ultrafast", goff.SearchFlags_CHILDREN)
 
-	err = outputVideoEncoderContext.Open2(oinputVideoDecoder, nil)
+	err = outputVideoEncoderContext.Open2(outputVideoEncoder, nil)
 	must(err)
 
 	err = outputVideoStream.CodecParameters().FromContext(outputVideoEncoderContext)
 	must(err)
 
-	outputFormatContext.DumpFormat(0, outPath, true)
+	// outputFormatContext.DumpFormat(0, outPath, true)
 
 	must(outputFormatContext.WriteHeader(nil))
 
