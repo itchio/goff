@@ -1843,7 +1843,11 @@ func goff_reader_read_packet(opaque unsafe.Pointer, buf unsafe.Pointer, bufSize 
 
 	if err != nil {
 		if err == io.EOF {
-			return C.AVERROR_EOF
+			if readBytes == 0 {
+				return C.AVERROR_EOF
+			} else {
+				return readBytes
+			}
 		}
 
 		// FIXME: what should be done with that error?
