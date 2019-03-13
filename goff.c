@@ -29,4 +29,11 @@ int64_t goff_reader_seek_trampoline(void *opaque, int64_t offset, int whence) {
   return goff_reader_seek(opaque, offset, whence);
 }
 
+int goff_writer_write_packet_trampoline(void *opaque, uint8_t *buf, int buf_size) {
+  return goff_writer_write_packet(opaque, buf, buf_size);
+}
+
+int64_t goff_writer_seek_trampoline(void *opaque, int64_t offset, int whence) {
+  return goff_writer_seek(opaque, offset, whence);
+}
 

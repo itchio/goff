@@ -1,10 +1,12 @@
 package goff_test
 
 import (
+	"io"
 	"os"
 	"testing"
 	"unsafe"
 
+	"github.com/dsnet/golib/memfile"
 	"github.com/itchio/goff"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,6 +40,7 @@ func TestTranscode(t *testing.T) {
 	inputPath := "testdata/sample.mp4"
 
 	inputFormatContext := goff.FormatAllocContext()
+	defer inputFormatContext.Free()
 	loggedObjects[uintptr(unsafe.Pointer(inputFormatContext))] = "demuxer"
 
 	reader, err := os.Open(inputPath)
@@ -73,12 +76,7 @@ func TestTranscode(t *testing.T) {
 
 	logf("Opening output...")
 
-	outPath := "out.mp4"
-
-	outputIOContext, err := goff.IOOpen(outPath, goff.IO_FLAG_WRITE)
-	must(err)
-	defer outputIOContext.Close()
-	loggedObjects[uintptr(unsafe.Pointer(outputIOContext))] = "output-io"
+	memBuffer := memfile.New(nil)
 
 	outputFormat := goff.GuessFormat("mp4", "", "")
 	if outputFormat == nil {
@@ -87,13 +85,12 @@ func TestTranscode(t *testing.T) {
 	}
 	logf("Guessed format: %s", outputFormat.LongName())
 
-	outputFormatContext, err := goff.FormatAllocOutputContext2(outputFormat, "", outPath)
+	outputFormatContext, err := goff.FormatAllocOutputContext2(outputFormat, "", "")
 	must(err)
 	defer outputFormatContext.Free()
 	loggedObjects[uintptr(unsafe.Pointer(outputFormatContext))] = "muxer"
 
-	outputFormatContext.SetPB(outputIOContext)
-	outputFormatContext.SetOutputFormat(outputFormat)
+	outputFormatContext.SetWriter(goff.NewWriter(memBuffer))
 
 	outputVideoStream := outputFormatContext.NewStream(inputVideoDecoder)
 	outputVideoStream.SetID(0)
@@ -225,5 +222,17 @@ func TestTranscode(t *testing.T) {
 	err = outputFormatContext.WriteTrailer()
 	must(err)
 
-	defer inputFormatContext.Free()
+	outPath := "out.mp4"
+	writerLen, err := memBuffer.Seek(0, io.SeekEnd)
+	must(err)
+
+	logf("Writing (%d KB) output to (%s)", writerLen/1024, outPath)
+	_, err = memBuffer.Seek(0, io.SeekStart)
+
+	outFile, err := os.Create(outPath)
+	must(err)
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, memBuffer)
+	must(err)
 }
