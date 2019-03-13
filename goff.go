@@ -23,10 +23,17 @@ package goff
 //#include <libswscale/swscale.h>
 //
 // void goff_log_callback_trampoline(void *ptr, int level, const char *fmt, va_list vl);
+// int goff_reader_read_packet_trampoline(void *opaque, uint8_t *buf, int buf_size);
+// int64_t goff_reader_seek_trampoline(void *opaque, int64_t offset, int whence);
+//
 import "C"
 import (
 	"fmt"
+	"io"
 	"reflect"
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -1245,6 +1252,12 @@ func (ctx *FormatContext) OpenInput(url string, format *InputFormat, options **D
 	return CheckErr(ret)
 }
 
+func (ctx *FormatContext) OpenReader(r *Reader, format *InputFormat, options **Dictionary) error {
+	ctx.SetPB(r.ctx)
+	ret := C.avformat_open_input(&ctx, nil, format, options)
+	return CheckErr(ret)
+}
+
 type SeekFlag int
 
 const (
@@ -1671,6 +1684,66 @@ func IOOpen(url string, flags IOFlags) (*IOContext, error) {
 	return ctx, err
 }
 
+type Reader struct {
+	inner  io.ReadSeeker
+	size   int64
+	ctx    *IOContext
+	id     int32
+	closed bool
+}
+
+var bridgeSeed int32 = 1
+var readers sync.Map
+
+func reserveReaderId(obj *Reader) {
+	obj.id = atomic.AddInt32(&bridgeSeed, 1)
+	readers.Store(obj.id, obj)
+}
+
+func freeReaderId(id int32) {
+	readers.Delete(id)
+}
+
+func finalizeReader(r *Reader) {
+	r.Free()
+}
+
+func NewReader(inner io.ReadSeeker, size int64) *Reader {
+	r := &Reader{
+		inner: inner,
+		size:  size,
+	}
+	runtime.SetFinalizer(r, finalizeReader)
+	reserveReaderId(r)
+
+	bufferSize := 4 * 1024 // 4KB, see doc for `avio_alloc_context`
+	buffer := C.av_malloc(C.size_t(bufferSize))
+	r.ctx = C.avio_alloc_context(
+		(*C.uchar)(buffer),
+		C.int(bufferSize),
+		0,                             // write_flag
+		unsafe.Pointer(uintptr(r.id)), // opaque
+		CCallback(C.goff_reader_read_packet_trampoline), // read_packet
+		nil,                                      // write_packet
+		CCallback(C.goff_reader_seek_trampoline), // seek
+	)
+	return r
+}
+
+func (r *Reader) Free() error {
+	if r.closed {
+		return nil
+	}
+
+	r.closed = true
+	freeReaderId(r.id)
+	C.av_free(unsafe.Pointer(r.ctx.buffer))
+	r.ctx.buffer = nil
+	C.avio_context_free(&r.ctx)
+	return nil
+}
+
+// Use only if used with IOOpen
 func (ctx *IOContext) Close() error {
 	return CheckErr(C.avio_close(ctx))
 }
@@ -1686,16 +1759,16 @@ var log_callback LogCallback
 var log_max_level LogLevel
 
 type LogCallback func(ptr uintptr, level LogLevel, line string, printPrefix bool)
-type CLogCallback = *[0]byte
+type CCallback = *[0]byte
 
 func LogSetCallback(maxLevel LogLevel, lc LogCallback) {
 	log_callback = lc
 	log_max_level = maxLevel
 
 	if log_callback == nil {
-		C.av_log_set_callback(CLogCallback(C.av_log_default_callback))
+		C.av_log_set_callback(CCallback(C.av_log_default_callback))
 	} else {
-		C.av_log_set_callback(CLogCallback(C.goff_log_callback_trampoline))
+		C.av_log_set_callback(CCallback(C.goff_log_callback_trampoline))
 	}
 }
 
@@ -1743,6 +1816,69 @@ func (ll LogLevel) String() string {
 	default:
 		return ""
 	}
+}
+
+//export goff_reader_read_packet
+func goff_reader_read_packet(opaque unsafe.Pointer, buf unsafe.Pointer, bufSize int) int {
+	id := int32(uintptr(opaque))
+	p, ok := readers.Load(id)
+	if !ok {
+		return C.AVERROR_EXTERNAL
+	}
+
+	r, ok := (p).(*Reader)
+	if !ok {
+		return C.AVERROR_EXTERNAL
+	}
+
+	h := reflect.SliceHeader{
+		Data: uintptr(buf),
+		Cap:  bufSize,
+		Len:  bufSize,
+	}
+	goBuf := *(*[]byte)(unsafe.Pointer(&h))
+
+	readBytes, err := r.inner.Read(goBuf)
+	fmt.Printf("read bytes = %d, err = %v\n", readBytes, err)
+
+	if err != nil {
+		if err == io.EOF {
+			return C.AVERROR_EOF
+		}
+
+		// FIXME: what should be done with that error?
+		return C.AVERROR_EXTERNAL
+	}
+
+	return readBytes
+}
+
+//export goff_reader_seek
+func goff_reader_seek(opaque unsafe.Pointer, offset int64, whence int) int64 {
+	id := int32(uintptr(opaque))
+	p, ok := readers.Load(id)
+	if !ok {
+		return -1
+	}
+
+	r, ok := (p).(*Reader)
+	if !ok {
+		return -1
+	}
+
+	if whence&C.AVSEEK_SIZE > 0 {
+		// don't seek, just return size
+		return r.size
+	}
+	// ignore AVSEEK_FORCE
+
+	newOffset, err := r.inner.Seek(offset, io.SeekStart)
+	if err != nil {
+		// FIXME: what to do with that error?
+	}
+	fmt.Printf("new offset = %d, err = %v\n", newOffset, err)
+
+	return newOffset
 }
 
 //export goff_send_log_to_go

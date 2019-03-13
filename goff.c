@@ -20,3 +20,13 @@ void goff_log_callback_trampoline(void *ptr, int level, const char *fmt, va_list
   vsnprintf(line, _GOFF_LOG_BUFFER_SIZE, fmt, vl);
   goff_send_log_to_go((uintptr_t)(ptr), level, line, print_prefix);
 }
+
+int goff_reader_read_packet_trampoline(void *opaque, uint8_t *buf, int buf_size) {
+  return goff_reader_read_packet(opaque, buf, buf_size);
+}
+
+int64_t goff_reader_seek_trampoline(void *opaque, int64_t offset, int whence) {
+  return goff_reader_seek(opaque, offset, whence);
+}
+
+

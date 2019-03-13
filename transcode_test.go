@@ -1,6 +1,7 @@
 package goff_test
 
 import (
+	"os"
 	"testing"
 	"unsafe"
 
@@ -10,14 +11,18 @@ import (
 
 func TestTranscode(t *testing.T) {
 	assert := assert.New(t)
+	logf := func(f string, args ...interface{}) {
+		t.Logf(f, args...)
+		// fmt.Printf("%s\n", fmt.Sprintf(f, args...))
+	}
 
 	loggedObjects := make(map[uintptr]string)
 
 	goff.LogSetCallback(goff.LogLevel_DEBUG, func(ptr uintptr, level goff.LogLevel, line string, printPrefix bool) {
 		if lo, ok := loggedObjects[ptr]; ok {
-			t.Logf("(%s) %s", lo, line)
+			logf("(%s) %s", lo, line)
 		} else {
-			t.Logf("(unknown %x) %s", ptr, line)
+			logf("(unknown %x) %s", ptr, line)
 		}
 	})
 
@@ -28,14 +33,21 @@ func TestTranscode(t *testing.T) {
 		}
 	}
 
-	t.Logf("Opening input...")
+	logf("Opening input...")
 
 	inputPath := "testdata/sample.mp4"
 
 	inputFormatContext := goff.FormatAllocContext()
 	loggedObjects[uintptr(unsafe.Pointer(inputFormatContext))] = "demuxer"
 
-	err := inputFormatContext.OpenInput(inputPath, nil, nil)
+	reader, err := os.Open(inputPath)
+	must(err)
+	defer reader.Close()
+
+	stats, err := reader.Stat()
+	must(err)
+
+	err = inputFormatContext.OpenReader(goff.NewReader(reader, stats.Size()), nil, nil)
 	must(err)
 
 	assert.EqualValues(2, inputFormatContext.NbStreams())
@@ -59,7 +71,7 @@ func TestTranscode(t *testing.T) {
 	err = inputVideoDecoderContext.Open2(inputVideoDecoder, nil)
 	must(err)
 
-	t.Logf("Opening output...")
+	logf("Opening output...")
 
 	outPath := "out.mp4"
 
@@ -73,7 +85,7 @@ func TestTranscode(t *testing.T) {
 		assert.NotNil(outputFormat)
 		t.FailNow()
 	}
-	t.Logf("Guessed format: %s", outputFormat.LongName())
+	logf("Guessed format: %s", outputFormat.LongName())
 
 	outputFormatContext, err := goff.FormatAllocOutputContext2(outputFormat, "", outPath)
 	must(err)
@@ -207,7 +219,7 @@ func TestTranscode(t *testing.T) {
 
 	flushEncoder()
 
-	t.Logf("Processed %d inputFrames in total", numFrames)
+	logf("Processed %d inputFrames in total", numFrames)
 	assert.EqualValues(23, numFrames)
 
 	err = outputFormatContext.WriteTrailer()
