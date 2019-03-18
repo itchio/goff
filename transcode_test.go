@@ -129,6 +129,7 @@ func TestTranscode(t *testing.T) {
 	defer inputFrame.Free()
 
 	var packet goff.Packet
+	defer packet.Unref()
 
 	writeEncodedPackets := func(last bool) {
 		for {
