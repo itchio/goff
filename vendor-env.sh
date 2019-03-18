@@ -2,3 +2,4 @@
 
 export GOFF_PREFIX=$PWD/vendor_c
 export PKG_CONFIG_PATH=$GOFF_PREFIX/lib/pkgconfig
+export PATH=$PATH:$GOFF_PREFIX/bin
