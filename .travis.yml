@@ -1,10 +1,13 @@
 dist: xenial
-go: "1.13.8"
 
 addons:
   apt:
     update: true
-    packages: build-essential
+    sources:
+      - ppa:longsleep/golang-backports
+    packages:
+      - build-essential
+      - golang-go
 
 before_script:
   - source vendor-env.sh
