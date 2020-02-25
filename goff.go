@@ -2140,7 +2140,7 @@ func (pkt *Packet) Pos() int64 {
 }
 
 func (pkt *Packet) Unref() {
-	C.av_packet_unref(pkt);
+	C.av_packet_unref(pkt)
 }
 
 // Convert valid timing fields (timestamps / durations) in a packet from one timebase to another.
