@@ -1791,7 +1791,6 @@ func (r *Reader) Free() {
 	C.av_free(unsafe.Pointer(r.ctx.buffer))
 	r.ctx.buffer = nil
 	C.avio_context_free(&r.ctx)
-	return
 }
 
 // Free deallocates all associated resoures with a Reader

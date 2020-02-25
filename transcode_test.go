@@ -6,8 +6,8 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/dsnet/golib/memfile"
 	"github.com/itchio/goff"
+	"github.com/itchio/goff/memfile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -76,7 +76,7 @@ func TestTranscode(t *testing.T) {
 
 	logf("Opening output...")
 
-	memBuffer := memfile.New(nil)
+	memBuffer := memfile.New()
 
 	outputFormat := goff.GuessFormat("mp4", "", "")
 	if outputFormat == nil {
