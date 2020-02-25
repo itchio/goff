@@ -1,4 +1,5 @@
 dist: xenial
+go: "1.13.8"
 
 addons:
   apt:
