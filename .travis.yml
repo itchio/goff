@@ -4,7 +4,7 @@ addons:
   apt:
     update: true
     sources:
-      - ppa:longsleep/golang-backports
+      - sourceline: "ppa:longsleep/golang-backports"
     packages:
       - build-essential
       - golang-go
