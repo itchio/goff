@@ -5,6 +5,6 @@ mkdir -p $GOFF_PREFIX/src
 pushd $GOFF_PREFIX/src
 # curl -L https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-2.14.02.tar.bz2 | tar -xj
 curl -L https://repo.or.cz/nasm.git/snapshot/74246c499ea4313fb8837977dc0c135fc50567c0.tar.gz | tar -xz
-curl -L http://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20190307-2245.tar.bz2 | tar -xj
-curl -L https://ffmpeg.org/releases/ffmpeg-4.1.1.tar.bz2 | tar -xj
+curl -L https://code.videolan.org/videolan/x264/-/archive/1771b556ee45207f8711744ccbd5d42a3949b14c/x264-1771b556ee45207f8711744ccbd5d42a3949b14c.tar.bz2 | tar -xj
+curl -L https://ffmpeg.org/releases/ffmpeg-4.2.2.tar.bz2 | tar -xj
 popd
