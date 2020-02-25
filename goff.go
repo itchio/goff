@@ -1781,9 +1781,9 @@ func NewWriter(inner io.WriteSeeker) *Writer {
 }
 
 // Free deallocates all associated resoures with a Reader
-func (r *Reader) Free() error {
+func (r *Reader) Free() {
 	if r.freed {
-		return nil
+		return
 	}
 
 	r.freed = true
@@ -1791,7 +1791,7 @@ func (r *Reader) Free() error {
 	C.av_free(unsafe.Pointer(r.ctx.buffer))
 	r.ctx.buffer = nil
 	C.avio_context_free(&r.ctx)
-	return nil
+	return
 }
 
 // Free deallocates all associated resoures with a Reader
@@ -2140,7 +2140,7 @@ func (pkt *Packet) Pos() int64 {
 }
 
 func (pkt *Packet) Unref() {
-	C.av_packet_unref(pkt);
+	C.av_packet_unref(pkt)
 }
 
 // Convert valid timing fields (timestamps / durations) in a packet from one timebase to another.
