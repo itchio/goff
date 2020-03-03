@@ -1,13 +1,13 @@
-dist: xenial
+language: go
+
+go:
+  - "1.14"
 
 addons:
   apt:
     update: true
-    sources:
-      - sourceline: "ppa:longsleep/golang-backports"
     packages:
       - build-essential
-      - golang-go
 
 before_script:
   - source vendor-env.sh
