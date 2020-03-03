@@ -9,7 +9,7 @@ addons:
     packages:
       - build-essential
 
-before_script:
+before_install:
   - source vendor-env.sh
   # for nasm
   - export PATH=$PATH:$GOFF_PREFIX/bin
